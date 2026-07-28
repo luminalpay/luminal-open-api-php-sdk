@@ -1,0 +1,35 @@
+# Composer
+/vendor/
+/auth.json
+/composer.phar
+# Keep composer.lock tracked for reproducible development and CI.
+
+# PHPUnit
+/.phpunit.result.cache
+/.phpunit.cache/
+/phpunit.xml
+/coverage/
+/clover.xml
+
+# Environment files
+/.env
+/.env.*
+!/.env.example
+
+# IDEs and editors
+.idea/
+.vscode/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# Build artifacts
+/build/
+/dist/

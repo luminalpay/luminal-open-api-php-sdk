@@ -1,0 +1,36 @@
+{
+  "name": "luminal/open-api-php-sdk",
+  "description": "Standalone PHP SDK for every Luminal Open API controller endpoint and webhook event.",
+  "type": "library",
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.1",
+    "ext-json": "*",
+    "ext-openssl": "*",
+    "psr/log": "^3.0",
+    "guzzlehttp/guzzle": "^7.9",
+    "composer/ca-bundle": "^1.5"
+  },
+  "require-dev": {
+    "monolog/monolog": "^3.0",
+    "phpunit/phpunit": "^10.5"
+  },
+  "autoload": {
+    "psr-4": {
+      "Luminal\\OpenApiSdk\\": "src/"
+    },
+    "classmap": [
+      "src/Model/"
+    ]
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Luminal\\OpenApiSdk\\Tests\\": "tests/"
+    }
+  },
+  "scripts": {
+    "test": "phpunit -c phpunit.xml.dist"
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
