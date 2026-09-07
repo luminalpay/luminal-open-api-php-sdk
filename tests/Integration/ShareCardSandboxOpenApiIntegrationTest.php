@@ -36,13 +36,13 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 #[Group('integration')]
-final class AllApiIntegrationTest extends TestCase
+final class ShareCardSandboxOpenApiIntegrationTest extends TestCase
 {
     private const DEFAULT_BASE_URL = 'https://sandbox-openapi.luminalads.com';
     private const DEFAULT_WEBHOOK_HOST = '0.0.0.0';
     private const DEFAULT_WEBHOOK_PORT = 18081;
     private const DEFAULT_WEBHOOK_PATH = '/luminal-open-api-webhook';
-    private const WEBHOOK_TIMEOUT_SECONDS = 120;
+    private const WEBHOOK_TIMEOUT_SECONDS = 30;
     private const WEBHOOK_LOG_INTERVAL_SECONDS = 10;
     private static ?Client $managedClient = null;
     private static ?OAuth2Token $cachedToken = null;

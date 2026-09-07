@@ -89,6 +89,23 @@ final class SharedAccountBalanceRequest extends JsonModel
     }
 }
 
+/** Parameters for cancelling a shared account after server-side verification. */
+final class SharedAccountCancelRequest extends JsonModel
+{
+    public function __construct(
+        public readonly int|string|null $memberSharedAccountId = null,
+        public readonly ?string $remark = null,
+        public readonly ?string $verifyCode = null,
+    ) {
+    }
+
+    protected function validateModel(): void
+    {
+        $this->requirePositiveId($this->memberSharedAccountId, 'memberSharedAccountId');
+        $this->requireNonBlank($this->verifyCode, 'verifyCode');
+    }
+}
+
 final class SharedAccountTransactionIdResponse extends JsonModel
 {
     public function __construct(public readonly ?string $sharedAccountTransactionId = null)
@@ -153,6 +170,8 @@ final class SharedAccountTransactionResponse extends JsonModel
         public readonly int|float|string|null $beforeBalance = null,
         public readonly int|float|string|null $beforeAccountBalance = null,
         public readonly ?string $status = null,
+        public readonly ?string $settleStatus = null,
+        public readonly ?DateTimeImmutable $settleTime = null,
         public readonly ?string $type = null,
         public readonly ?string $tradeType = null,
         public readonly ?string $description = null,

@@ -6,7 +6,7 @@ Standalone PHP 8.1+ SDK for every enabled Luminal Open API controller endpoint a
 
 - No dependency on any Luminal project module.
 - HTTP uses Guzzle 7 with Composer's maintained Mozilla CA bundle; TLS verification is enabled by default.
-- Every request uses HTTP `POST` and decodes the standard `{code, msg, data}` response envelope.
+- Unless noted otherwise, requests use HTTP `POST`; `cardHolders()->countries()` uses an authorized `GET`. All requests decode the standard `{code, msg, data}` response envelope.
 - Only HTTP `200` is transport success. Every other HTTP status, malformed envelope, or non-zero API code throws `ApiException`.
 - Card issuance uses separate canonical JSON for transport and signing.
 - Webhooks verify the exact raw request body before JSON decoding.
@@ -90,6 +90,7 @@ API groups and `Client` accept `TransportInterface`. Use a custom implementation
 | `sharedAccounts()->list()` | `/open-api/v1/shared-account/list` | List shared accounts. |
 | `sharedAccounts()->increase()` | `/open-api/v1/shared-account/increase` | Deposit into a shared account. |
 | `sharedAccounts()->decrease()` | `/open-api/v1/shared-account/decrease` | Withdraw from a shared account. |
+| `sharedAccounts()->cancel()` | `/open-api/v1/shared-account/cancel` | Cancel a shared account with an email/OTP verification code. |
 | `sharedAccounts()->details()` | `/open-api/v1/shared-account/details` | Retrieve shared-account details. |
 | `sharedAccounts()->transactions()` | `/open-api/v1/shared-account/transactions` | List shared-account transactions. |
 | `cards()->bins()` | `/open-api/v1/cards/bins` | List available card BIN products. |
@@ -99,9 +100,19 @@ API groups and `Client` accept `TransportInterface`. Use a custom implementation
 | `cards()->transactions()` | `/open-api/v1/cards/transactions` | List card transactions. |
 | `cards()->limit()` | `/open-api/v1/cards/limit` | Retrieve a card limit. |
 | `cards()->modifyLimit()` | `/open-api/v1/cards/limit/modify` | Update a card limit. |
+| `cards()->modifyLimitAsync()` | `/open-api/v1/cards/limit/modify/operation-record` | Update a card limit and return an operation-record ID. |
 | `cards()->freeze()` | `/open-api/v1/cards/freeze` | Freeze a card. |
 | `cards()->unfreeze()` | `/open-api/v1/cards/unfreeze` | Unfreeze a card. |
 | `cards()->cancel()` | `/open-api/v1/cards/cancel` | Cancel a card. |
+| `cards()->recharge()` | `/open-api/v1/cards/recharge` | Submit a recharge-card funding request without a signature. |
+| `cards()->withdraw()` | `/open-api/v1/cards/withdraw` | Submit a recharge-card withdrawal request without a signature. |
+| `cards()->operationRecords()` | `/open-api/v1/cards/operation-record` | Query SHARED or RECHARGE card operation records with pagination. |
+| `cardHolders()->countries()` | `/open-api/v1/card-holders/countries` | List supported cardholder countries and dialing-code rules. |
+| `cardHolders()->add()` | `/open-api/v1/card-holders/add` | Create a cardholder. |
+| `cardHolders()->modify()` | `/open-api/v1/card-holders/modify` | Update a cardholder. |
+| `cardHolders()->detail()` | `/open-api/v1/card-holders/info/{cardHolderId}` | Retrieve cardholder details. |
+| `cardHolders()->page()` | `/open-api/v1/card-holders/page` | List cardholders with pagination. |
+| `cardHolders()->associatedCards()` | `/open-api/v1/card-holders/card/page` | List cards associated with a cardholder. |
 | `cards()->issueDetails()` | `/open-api/v1/cards/issue/detail` | Retrieve card issuance task results. |
 | `cardGroups()->list()` | `/open-api/v1/cards/group` | List card groups. |
 | `cardGroups()->create()` | `/open-api/v1/cards/group/create` | Create a card group. |
@@ -127,6 +138,39 @@ $sharedAccount = $client->sharedAccounts()->create(new CreateSharedAccountReques
 ));
 ```
 
+Shared-account cancellation requires the server verification code:
+
+```php
+use Luminal\OpenApiSdk\Model\SharedAccountCancelRequest;
+
+$canceled = $client->sharedAccounts()->cancel(new SharedAccountCancelRequest(
+    memberSharedAccountId: 11,
+    remark: 'No longer needed',
+    verifyCode: $verificationCode,
+));
+```
+
+Cardholder management uses `DateTimeImmutable` for `birthDate`; it is sent as a date-only `Y-m-d` value:
+
+```php
+use DateTimeImmutable;
+use Luminal\OpenApiSdk\Model\CardHolderCreateRequest;
+
+$cardHolderId = $client->cardHolders()->add(new CardHolderCreateRequest(
+    lastName: 'Smith',
+    firstName: 'John',
+    birthDate: new DateTimeImmutable('1990-01-15'),
+    mail: 'john.smith@example.com',
+    phone: '2025550123',
+    areaCode: '1',
+    countryId: 244,
+    postalCode: '10001',
+    state: 'New York',
+    city: 'New York',
+    addressLine1: '350 Fifth Avenue',
+));
+```
+
 ## Card issuance signing
 
 `/cards/issue` uses two canonical serializations. `CanonicalJson::encode()` produces the transmitted body with the regular Int64 number/string rule. `CanonicalJson::encodeForSignature()` produces the `SHA256withRSA` signature input with typed Long/ID fields kept as JSON numbers. Both omit null object fields and sort object keys alphabetically, but their bytes may differ:
@@ -137,11 +181,36 @@ use Luminal\OpenApiSdk\Model\IssueCardRequest;
 $request = new IssueCardRequest(
     applyCount: 1,
     cardBinId: 1001,
-    cardType: 'VIRTUAL',
+    cardType: 'RECHARGE',
+    dailyLimit: 500.00,
+    monthLimit: 5000.00,
     rechargeAmount: 100.00,
 );
 $taskId = $client->cards()->issueWithPrivateKey($request, $privateKeyPem);
 ```
+
+Recharge-card funding and withdrawal are bearer-authorized JSON requests and do not require a signature:
+
+```php
+use Luminal\OpenApiSdk\Model\MemberCardRechargeRequest;
+use Luminal\OpenApiSdk\Model\MemberCardWithdrawRequest;
+use Luminal\OpenApiSdk\Model\RechargeCardOperationRecordRequest;
+
+$rechargeRecordId = $client->cards()->recharge(
+    new MemberCardRechargeRequest(memberCardId: 901, amount: 100.00, remark: 'Funding'),
+);
+$withdrawRecordId = $client->cards()->withdraw(
+    new MemberCardWithdrawRequest(memberCardId: 901, amount: 25.00, remark: 'Withdrawal'),
+);
+$operation = $client->cards()->operationRecord(
+    new RechargeCardOperationRecordRequest($rechargeRecordId),
+);
+```
+
+Card-limit updates can include `dailyLimit`, `monthLimit`, and `totalLimit`. The current four-argument constructor is
+`CardLimitUpdateRequest($memberCardId, $dailyLimit, $monthLimit, $totalLimit)`; the legacy `cardType` argument remains
+accepted for source compatibility and is omitted from the request body. Use `modifyLimitAsync()` when the operation-record
+identifier is needed for polling or webhook correlation.
 
 For an externally computed signature:
 
@@ -193,16 +262,48 @@ Supported events:
 | Event | Payload | Description |
 |---|---|---|
 | `CARD_TRANSACTIONS` | `TransactionWebhook` | Card transaction update. |
+| `CARD_SETTLE_STATUS` | `TransactionWebhook` | Local settlement status update for recharge and shared cards. |
 | `CARD_STATUS` | `CardStatusWebhook` | Card status change. |
 | `CARD_OPEN_STATUS` | `CardOpenStatusWebhook` | Card issuance task result. |
+| `CARD_RECHARGE_STATUS` | `RechargeCardTransferStatusWebhook` | Recharge-card funding result. |
+| `CARD_WITHDRAW_STATUS` | `RechargeCardTransferStatusWebhook` | Recharge-card withdrawal result. |
+| `CARD_LIMIT_STATUS` | `RechargeCardTransferStatusWebhook` | Asynchronous card-limit modification result. |
 | `SHARED_ACCOUNT_OPEN_STATUS` | `SharedAccountOpenStatusWebhook` | Shared-account opening result. |
 | `SHARE_ACCOUNT_FUND_TRANSACTIONS` | `TransactionWebhook` | Shared-account fund transaction update. |
 
 The SDK verifies signatures but does not persist `event_id` values. Store event IDs and reject duplicates in the application according to its retention policy.
 
+`TransactionWebhook` includes `memberCardTransactionId`, `settleStatus`, and `settleTime` for the newer card transaction
+events. `RechargeCardTransferStatusWebhook` carries the operation-record ID, card ID, operation type, status, amount,
+balance, and update time for recharge, withdrawal, and limit operations.
+
 ## Tests
 
-Each of the 26 controller endpoints has an independent PHPUnit test class covering method, path, authorization, request body, and response decoding. Webhook tests cover exact-byte verification, tampered bodies, all five event types, invalid signatures, unknown events, and RSA PEM handling.
+Controller endpoint tests cover HTTP method, path, authorization, request body, and response decoding. Webhook tests cover
+exact-byte verification, tampered bodies, all supported event types, invalid signatures, unknown events, and RSA PEM handling.
+
+### Sandbox integration tests
+
+The Java-aligned shared-card flow is in
+`tests/Integration/ShareCardSandboxOpenApiIntegrationTest.php`:
+
+```powershell
+vendor\bin\phpunit -c phpunit.xml.dist tests\Integration\ShareCardSandboxOpenApiIntegrationTest.php
+```
+
+The recharge-card flow is independent and is in
+`tests/Integration/RechargeCardSandboxOpenApiIntegrationTest.php`:
+
+```powershell
+$env:LUMINAL_OPEN_API_RECHARGE_APP_ID = '...'
+$env:LUMINAL_OPEN_API_RECHARGE_APP_SECRET = '...'
+$env:LUMINAL_OPEN_API_RECHARGE_PRIVATE_KEY_PATH = 'C:\keys\recharge-card-private-key.pem'
+vendor\bin\phpunit -c phpunit.xml.dist tests\Integration\RechargeCardSandboxOpenApiIntegrationTest.php
+```
+
+The recharge-card test defaults to BIN `578391` and also accepts the shared
+`LUMINAL_OPEN_API_*` variables as fallbacks. Without credentials, its 24
+Sandbox tests are skipped.
 
 
 ## HTTP logging
@@ -234,7 +335,7 @@ $client = (new Client($baseUrl))
     ->withLogger($logger);
 ```
 
-Without a custom logger, the SDK writes request/response logs to standard output. Header names and recursive JSON field names are matched case-insensitively. `Authorization`, `Cookie`, `Set-Cookie`, `sign`, `accessToken`, `refreshToken`, `appSecret`, `cvv`, `cardNo`, and `cardNumber` values are redacted as `<redacted>`. Non-JSON bodies log only `<non-json N bytes>`.
+Without a custom logger, the SDK writes request/response logs to standard output. Header names and recursive JSON field names are matched case-insensitively. `Authorization`, `Cookie`, `Set-Cookie`, `sign`, `accessToken`, `refreshToken`, `appSecret`, `cvv`, `cardNo`, `cardNumber`, and `verifyCode` values are redacted as `<redacted>`. Non-JSON bodies log only `<non-json N bytes>`.
 
 ### TLS certificates
 

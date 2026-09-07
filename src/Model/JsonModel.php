@@ -180,6 +180,13 @@ abstract class JsonModel implements JsonSerializable
         }
     }
 
+    protected function validateOptionalPositiveDecimal(int|float|string|null $value, string $path): void
+    {
+        if ($value !== null) {
+            $this->requirePositiveDecimal($value, $path);
+        }
+    }
+
     /** @param list<int|string>|null $values */
     protected function validateIdentifierList(?array $values, string $path): void
     {
@@ -259,6 +266,9 @@ abstract class JsonModel implements JsonSerializable
                 if ($value instanceof DateTimeInterface) {
                     return DateTimeImmutable::createFromInterface($value);
                 }
+                if (is_array($value)) {
+                    return self::dateTimeArray($value);
+                }
                 if (is_string($value) && trim($value) !== '') {
                     return self::dateTime($value);
                 }
@@ -319,6 +329,68 @@ abstract class JsonModel implements JsonSerializable
             new \DateTimeZone('UTC'),
         ) ?: throw new \UnexpectedValueException('Invalid date-time value.');
     }
+
+    /** Converts Java/Jackson date and local-date-time array representations. */
+    private static function dateTimeArray(array $value): DateTimeImmutable
+    {
+        if (!array_is_list($value)) {
+            throw new \InvalidArgumentException('Date-time arrays must be indexed lists.');
+        }
+
+        $parts = array_values($value);
+        $count = count($parts);
+        if (!in_array($count, [3, 6, 7], true)) {
+            throw new \InvalidArgumentException(
+                'Date-time arrays must contain [year, month, day] or [year, month, day, hour, minute, second, nanosecond].',
+            );
+        }
+
+        $year = self::dateComponent($parts[0], 'year');
+        $month = self::dateComponent($parts[1], 'month');
+        $day = self::dateComponent($parts[2], 'day');
+        $hour = 0;
+        $minute = 0;
+        $second = 0;
+        $microsecond = 0;
+
+        if ($count >= 6) {
+            $hour = self::dateComponent($parts[3], 'hour');
+            $minute = self::dateComponent($parts[4], 'minute');
+            $second = self::dateComponent($parts[5], 'second');
+        }
+        if ($count === 7) {
+            $nanosecond = self::dateComponent($parts[6], 'nanosecond');
+            if ($nanosecond < 0 || $nanosecond > 999_999_999) {
+                throw new \InvalidArgumentException('nanosecond must be between 0 and 999999999.');
+            }
+            $microsecond = intdiv($nanosecond, 1_000);
+        }
+
+        if (!checkdate($month, $day, $year)
+            || $hour < 0 || $hour > 23
+            || $minute < 0 || $minute > 59
+            || $second < 0 || $second > 59) {
+            throw new \InvalidArgumentException('Date-time array contains an invalid date or time.');
+        }
+
+        return DateTimeImmutable::createFromFormat(
+            '!Y-m-d H:i:s.u',
+            sprintf('%04d-%02d-%02d %02d:%02d:%02d.%06d', $year, $month, $day, $hour, $minute, $second, $microsecond),
+            new \DateTimeZone('UTC'),
+        ) ?: throw new \UnexpectedValueException('Invalid date-time array.');
+    }
+
+    private static function dateComponent(mixed $value, string $name): int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+        if (is_string($value) && preg_match('/^[0-9]+$/D', $value) === 1) {
+            return (int) $value;
+        }
+        throw new \InvalidArgumentException($name . ' must be an integer in a date-time array.');
+    }
+
     private static function validateValue(mixed $value, ?ReflectionType $type, string $path): void
     {
         if ($value === null) {

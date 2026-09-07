@@ -13,7 +13,7 @@ use Psr\Log\LoggerInterface;
 use JsonException;
 use Throwable;
 
-/** Minimal standalone POST transport for the Luminal response envelope. */
+/** Minimal standalone HTTP transport for the Luminal response envelope. */
 final class HttpTransport implements TransportInterface
 {
     private const SUCCESS_CODE = 0;
@@ -22,7 +22,9 @@ final class HttpTransport implements TransportInterface
     private const DEFAULT_HTTP_LOGGING = true;
     private const DEFAULT_MAX_RESPONSE_BODY_BYTES = 1_048_576;
     private const SENSITIVE_LOG_HEADERS = ['authorization', 'cookie', 'set-cookie', 'sign'];
-    private const SENSITIVE_LOG_BODY_KEYS = ['accesstoken', 'refreshtoken', 'appsecret', 'cvv', 'cardno', 'cardnumber'];
+    private const SENSITIVE_LOG_BODY_KEYS = [
+        'accesstoken', 'refreshtoken', 'appsecret', 'cvv', 'cardno', 'cardnumber', 'verifycode',
+    ];
 
     /**
      * @param callable|null $sender Test hook receiving method, URL, headers, and nullable body.
@@ -173,17 +175,22 @@ final class HttpTransport implements TransportInterface
 
     public function postPublic(string $path, mixed $body, array $headers = []): mixed
     {
-        return $this->post($path, $body === null ? null : $this->serialize($body), $headers, false);
+        return $this->request('POST', $path, $body === null ? null : $this->serialize($body), $headers, false);
     }
 
     public function postAuthorized(string $path, mixed $body, array $headers = []): mixed
     {
-        return $this->post($path, $body === null ? null : $this->serialize($body), $headers, true);
+        return $this->request('POST', $path, $body === null ? null : $this->serialize($body), $headers, true);
+    }
+
+    public function getAuthorized(string $path, array $headers = []): mixed
+    {
+        return $this->request('GET', $path, null, $headers, true);
     }
 
     public function postSerializedAuthorized(string $path, string $body, array $headers = []): mixed
     {
-        return $this->post($path, $body, $headers, true);
+        return $this->request('POST', $path, $body, $headers, true);
     }
 
     public function postAuthorizedBoolean(string $path, mixed $body): bool
@@ -199,7 +206,7 @@ final class HttpTransport implements TransportInterface
         return $value;
     }
 
-    private function post(string $path, ?string $body, array $headers, bool $authorized): mixed
+    private function request(string $method, string $path, ?string $body, array $headers, bool $authorized): mixed
     {
         self::validatePath($path);
         $headers = self::normalizeHeaders($headers);
@@ -216,8 +223,8 @@ final class HttpTransport implements TransportInterface
             }
 
             try {
-                $this->logRequest($path, $headers, $body);
-                $response = $this->sendOnce($path, $body, $headers);
+                $this->logRequest($method, $path, $headers, $body);
+                $response = $this->sendOnce($method, $path, $body, $headers);
             } catch (ApiException $exception) {
                 if ($attempt + 1 < $attempts && $this->shouldRetryRequest($exception, $authorized)) {
                     $this->refreshCachedToken();
@@ -284,9 +291,8 @@ final class HttpTransport implements TransportInterface
         throw new ApiException('Luminal API request failed after token retry.');
     }
 
-    private function sendOnce(string $path, ?string $body, array $headers): array
+    private function sendOnce(string $method, string $path, ?string $body, array $headers): array
     {
-        $method = 'POST';
         $url = $this->baseUrl . $path;
         if ($this->sender !== null) {
             return ($this->sender)($method, $url, $headers, $body);
@@ -371,12 +377,12 @@ final class HttpTransport implements TransportInterface
     }
 
 
-    private function logRequest(string $path, array $headers, ?string $body): void
+    private function logRequest(string $method, string $path, array $headers, ?string $body): void
     {
         if (!$this->httpLogging || $this->logger === null) {
             return;
         }
-        $message = 'HTTP request method=POST url=' . $this->baseUrl . $path;
+        $message = 'HTTP request method=' . $method . ' url=' . $this->baseUrl . $path;
         $context = ['headers' => self::redactLogHeaders($headers), 'body' => self::redactLogBody($body)];
         $this->logger->info($message, $context);
     }

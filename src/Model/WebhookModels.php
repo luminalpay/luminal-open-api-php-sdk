@@ -68,9 +68,29 @@ final class SharedAccountOpenStatusWebhook extends JsonModel
     }
 }
 
+/** Payload for recharge-card funding, withdrawal, and limit-operation webhooks. */
+final class RechargeCardTransferStatusWebhook extends JsonModel
+{
+    public function __construct(
+        public readonly int|string|null $memberCardOperationRecordId = null,
+        public readonly int|string|null $memberCardId = null,
+        public readonly ?string $cardType = null,
+        public readonly ?string $operationType = null,
+        public readonly int|float|string|null $amount = null,
+        public readonly ?string $currencyCode = null,
+        public readonly int|float|string|null $balance = null,
+        public readonly ?string $status = null,
+        public readonly ?string $message = null,
+        public readonly ?DateTimeImmutable $updateTime = null,
+    ) {
+    }
+}
+
 final class TransactionWebhook extends JsonModel
 {
     public function __construct(
+        public readonly ?string $memberCardTransactionId = null,
+        public readonly ?string $cardType = null,
         public readonly ?string $sharedAccountTransactionId = null,
         public readonly ?string $memberSharedAccountId = null,
         public readonly ?string $memberCardId = null,
@@ -82,6 +102,8 @@ final class TransactionWebhook extends JsonModel
         public readonly int|float|string|null $beforeBalance = null,
         public readonly int|float|string|null $beforeAccountBalance = null,
         public readonly ?string $status = null,
+        public readonly ?string $settleStatus = null,
+        public readonly ?DateTimeImmutable $settleTime = null,
         public readonly ?string $type = null,
         public readonly ?string $tradeType = null,
         public readonly ?string $direction = null,

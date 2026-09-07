@@ -39,6 +39,11 @@ final class HttpTransportTest extends TestCase
                 return null;
             }
 
+            public function getAuthorized(string $path, array $headers = []): mixed
+            {
+                return null;
+            }
+
             public function postSerializedAuthorized(string $path, string $body, array $headers = []): mixed
             {
                 return null;

@@ -7,6 +7,7 @@ namespace Luminal\OpenApiSdk;
 use Luminal\OpenApiSdk\Api\AccountsApi;
 use Luminal\OpenApiSdk\Api\AuthApi;
 use Luminal\OpenApiSdk\Api\CardGroupsApi;
+use Luminal\OpenApiSdk\Api\CardHoldersApi;
 use Luminal\OpenApiSdk\Api\CardsApi;
 use Luminal\OpenApiSdk\Api\SharedAccountsApi;
 use Luminal\OpenApiSdk\Api\TransactionsApi;
@@ -23,6 +24,7 @@ final class Client
     private TransactionsApi $transactions;
     private SharedAccountsApi $sharedAccounts;
     private CardsApi $cards;
+    private CardHoldersApi $cardHolders;
     private CardGroupsApi $cardGroups;
 
     /**
@@ -129,6 +131,11 @@ final class Client
         return $this->cards;
     }
 
+    public function cardHolders(): CardHoldersApi
+    {
+        return $this->cardHolders;
+    }
+
     public function cardGroups(): CardGroupsApi
     {
         return $this->cardGroups;
@@ -142,6 +149,7 @@ final class Client
         $this->transactions = new TransactionsApi($transport);
         $this->sharedAccounts = new SharedAccountsApi($transport);
         $this->cards = new CardsApi($transport);
+        $this->cardHolders = new CardHoldersApi($transport);
         $this->cardGroups = new CardGroupsApi($transport);
     }
 }

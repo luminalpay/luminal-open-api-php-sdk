@@ -7,6 +7,7 @@ namespace Luminal\OpenApiSdk\Tests\Webhook;
 use Luminal\OpenApiSdk\RsaSignatures;
 use Luminal\OpenApiSdk\Model\CardOpenStatusWebhook;
 use Luminal\OpenApiSdk\Model\CardStatusWebhook;
+use Luminal\OpenApiSdk\Model\RechargeCardTransferStatusWebhook;
 use Luminal\OpenApiSdk\Model\SharedAccountOpenStatusWebhook;
 use Luminal\OpenApiSdk\Model\TransactionWebhook;
 use Luminal\OpenApiSdk\Tests\Support\EndpointTestCase;
@@ -66,7 +67,12 @@ KEY;
         self::assertSame('event-1', $event->eventId);
         self::assertSame($rawBody, $event->rawBody);
         self::assertInstanceOf(match ($eventType) {
-            WebhookEventType::CARD_TRANSACTIONS, WebhookEventType::SHARE_ACCOUNT_FUND_TRANSACTIONS => TransactionWebhook::class,
+            WebhookEventType::CARD_TRANSACTIONS,
+            WebhookEventType::CARD_SETTLE_STATUS,
+            WebhookEventType::SHARE_ACCOUNT_FUND_TRANSACTIONS => TransactionWebhook::class,
+            WebhookEventType::CARD_RECHARGE_STATUS,
+            WebhookEventType::CARD_WITHDRAW_STATUS,
+            WebhookEventType::CARD_LIMIT_STATUS => RechargeCardTransferStatusWebhook::class,
             WebhookEventType::CARD_STATUS => CardStatusWebhook::class,
             WebhookEventType::CARD_OPEN_STATUS => CardOpenStatusWebhook::class,
             WebhookEventType::SHARED_ACCOUNT_OPEN_STATUS => SharedAccountOpenStatusWebhook::class,
@@ -166,6 +172,44 @@ KEY;
 
         self::assertSame('5', $payload->memberCardId);
         self::assertSame('6', $payload->memberNo);
+    }
+
+    public function testHydratesRechargeOperationWebhook(): void
+    {
+        $rawBody = '{"memberCardOperationRecordId":601,"memberCardId":5,"cardType":"RECHARGE","operationType":"RECHARGE","amount":25,"status":"SUCCESS","updateTime":1788171390000}';
+        $signature = RsaSignatures::sign($rawBody, $this->privateKeyPem);
+
+        $event = WebhookVerifier::parse(
+            WebhookEventType::CARD_RECHARGE_STATUS,
+            'event-7',
+            $rawBody,
+            $signature,
+            $this->publicKeyPem,
+        );
+
+        self::assertInstanceOf(RechargeCardTransferStatusWebhook::class, $event->payload);
+        self::assertSame(601, $event->payload->memberCardOperationRecordId);
+        self::assertSame('RECHARGE', $event->payload->operationType);
+        self::assertSame('2026', $event->payload->updateTime?->format('Y'));
+    }
+
+    public function testHydratesCardSettlementFields(): void
+    {
+        $rawBody = '{"memberCardTransactionId":"T1","cardType":"RECHARGE","settleStatus":"SETTLED","settleTime":1788171390000}';
+        $signature = RsaSignatures::sign($rawBody, $this->privateKeyPem);
+
+        $event = WebhookVerifier::parse(
+            WebhookEventType::CARD_SETTLE_STATUS,
+            'event-8',
+            $rawBody,
+            $signature,
+            $this->publicKeyPem,
+        );
+
+        self::assertInstanceOf(TransactionWebhook::class, $event->payload);
+        self::assertSame('T1', $event->payload->memberCardTransactionId);
+        self::assertSame('SETTLED', $event->payload->settleStatus);
+        self::assertSame('2026', $event->payload->settleTime?->format('Y'));
     }
 
 }

@@ -100,8 +100,10 @@ final class ModelValidationTest extends TestCase
                 'cardName' => null,
                 'cardType' => null,
                 'memberSharedAccountId' => 77,
+                'dailyLimit' => null,
                 'monthLimit' => '100.00',
                 'rechargeAmount' => 100,
+                'cardHolderId' => null,
             ],
             (new IssueCardRequest(
                 applyCount: 1,
@@ -114,6 +116,8 @@ final class ModelValidationTest extends TestCase
         self::assertSame(
             [
                 'memberCardId' => 1001,
+                'dailyLimit' => null,
+                'monthLimit' => null,
                 'totalLimit' => 100,
             ],
             (new CardLimitUpdateRequest(1001, 100))->toArray(),

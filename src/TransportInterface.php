@@ -20,6 +20,8 @@ interface TransportInterface
 
     public function postAuthorized(string $path, mixed $body, array $headers = []): mixed;
 
+    public function getAuthorized(string $path, array $headers = []): mixed;
+
     public function postSerializedAuthorized(string $path, string $body, array $headers = []): mixed;
 
     public function postAuthorizedBoolean(string $path, mixed $body): bool;

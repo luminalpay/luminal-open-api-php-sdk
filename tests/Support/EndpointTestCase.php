@@ -43,6 +43,24 @@ abstract class EndpointTestCase extends TestCase
         self::assertSame('application/json', $this->request['headers']['Content-Type'] ?? null);
     }
 
+    protected function assertGet(string $path, string $authorization = 'Bearer test-token'): void
+    {
+        self::assertSame('GET', $this->request['method']);
+        self::assertSame('https://api.example.test' . $path, $this->request['url']);
+        self::assertSame($authorization, $this->request['headers']['Authorization'] ?? null);
+        self::assertNull($this->request['body']);
+        self::assertArrayNotHasKey('Content-Type', $this->request['headers']);
+    }
+
+    protected function assertEmptyJsonPost(string $path, string $authorization = 'Bearer test-token'): void
+    {
+        self::assertSame('POST', $this->request['method']);
+        self::assertSame('https://api.example.test' . $path, $this->request['url']);
+        self::assertSame($authorization, $this->request['headers']['Authorization'] ?? null);
+        self::assertSame('{}', $this->request['body']);
+        self::assertSame('application/json', $this->request['headers']['Content-Type'] ?? null);
+    }
+
     protected function assertJsonBodyContains(string $fragment): void
     {
         self::assertStringContainsString($fragment, $this->request['body'] ?? '');

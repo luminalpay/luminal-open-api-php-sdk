@@ -21,8 +21,12 @@ use Luminal\OpenApiSdk\Model\IssueCardDetailsResponse;
 use Luminal\OpenApiSdk\Model\IssueCardRequest;
 use Luminal\OpenApiSdk\Model\JsonModel;
 use Luminal\OpenApiSdk\Model\MemberCardPageRequest;
+use Luminal\OpenApiSdk\Model\MemberCardRechargeRequest;
 use Luminal\OpenApiSdk\Model\MemberCardResponse;
+use Luminal\OpenApiSdk\Model\MemberCardWithdrawRequest;
 use Luminal\OpenApiSdk\Model\PageResult;
+use Luminal\OpenApiSdk\Model\RechargeCardOperationRecordRequest;
+use Luminal\OpenApiSdk\Model\RechargeCardOperationRecordResponse;
 use Luminal\OpenApiSdk\RsaSignatures;
 
 /** Card endpoints, including signed card issuance. */
@@ -88,6 +92,12 @@ final class CardsApi
         return $this->action('/limit/modify', $request);
     }
 
+    /** Updates a card limit asynchronously and returns its operation-record identifier. */
+    public function modifyLimitAsync(CardLimitUpdateRequest $request): int|string|null
+    {
+        return $this->post('/limit/modify/operation-record', $request);
+    }
+
     /** Freezes a card. */
     public function freeze(CardIdRequest $request): bool
     {
@@ -104,6 +114,34 @@ final class CardsApi
     public function cancel(CardIdRequest $request): bool
     {
         return $this->action('/cancel', $request);
+    }
+
+    /** Submits a recharge-card funding request without a signature. */
+    public function recharge(MemberCardRechargeRequest $request): int|string|null
+    {
+        return $this->post('/recharge', $request);
+    }
+
+    /** Submits a recharge-card withdrawal request without a signature. */
+    public function withdraw(MemberCardWithdrawRequest $request): int|string|null
+    {
+        return $this->post('/withdraw', $request);
+    }
+
+    /** Returns the first matching card operation record, or null when none exists. */
+    public function operationRecord(RechargeCardOperationRecordRequest $request): ?RechargeCardOperationRecordResponse
+    {
+        $page = $this->operationRecords($request);
+        if ($page === null || $page->list === null || $page->list === []) {
+            return null;
+        }
+        return $page->list[0];
+    }
+
+    /** Lists SHARED or RECHARGE card operation records with pagination. */
+    public function operationRecords(RechargeCardOperationRecordRequest $request): ?PageResult
+    {
+        return self::page($this->post('/operation-record', $request), RechargeCardOperationRecordResponse::class);
     }
 
     /** Retrieves per-card results for a card issuance task. */
@@ -165,4 +203,3 @@ final class CardsApi
         return $data;
     }
 }
-

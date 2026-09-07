@@ -10,6 +10,7 @@ use Luminal\OpenApiSdk\Model\JsonModel;
 use Luminal\OpenApiSdk\Model\CreateSharedAccountRequest;
 use Luminal\OpenApiSdk\Model\PageResult;
 use Luminal\OpenApiSdk\Model\SharedAccountBalanceRequest;
+use Luminal\OpenApiSdk\Model\SharedAccountCancelRequest;
 use Luminal\OpenApiSdk\Model\SharedAccountGetRequest;
 use Luminal\OpenApiSdk\Model\SharedAccountIdResponse;
 use Luminal\OpenApiSdk\Model\SharedAccountPageRequest;
@@ -49,6 +50,12 @@ final class SharedAccountsApi
     public function decrease(SharedAccountBalanceRequest $request): ?SharedAccountTransactionIdResponse
     {
         return self::objectResult($this->post('/decrease', $request), SharedAccountTransactionIdResponse::class);
+    }
+
+    /** Cancels a shared account after server-side verification. */
+    public function cancel(SharedAccountCancelRequest $request): bool
+    {
+        return $this->transport->postAuthorizedBoolean(self::PATH . '/cancel', $request);
     }
 
     /** Retrieves one shared account. */

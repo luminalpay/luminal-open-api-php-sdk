@@ -4,6 +4,32 @@ declare(strict_types=1);
 
 namespace Luminal\OpenApiSdk\Model;
 
+enum OpenApiScope: string
+{
+    case ACCOUNT_READ = 'openapi:account:read';
+    case CARD_READ = 'openapi:card:read';
+    case CARD_ISSUE = 'openapi:card:issue';
+    case CARD_FREEZE = 'openapi:card:freeze';
+    case CARD_CANCEL = 'openapi:card:cancel';
+    case CARD_LIMIT_WRITE = 'openapi:card:limit:write';
+    case CARD_DETAIL_READ = 'openapi:card:detail:read';
+    case CARD_GROUP_READ = 'openapi:card-group:read';
+    case CARD_GROUP_WRITE = 'openapi:card-group:write';
+    case RECHARGE_CARD_ISSUE = 'openapi:recharge-card:issue';
+    case RECHARGE_CARD_RECHARGE = 'openapi:recharge-card:recharge';
+    case RECHARGE_CARD_WITHDRAW = 'openapi:recharge-card:withdraw';
+    case SHARED_ACCOUNT_READ = 'openapi:shared-account:read';
+    case SHARED_ACCOUNT_CREATE = 'openapi:shared-account:create';
+    case SHARED_ACCOUNT_DEPOSIT = 'openapi:shared-account:deposit';
+    case SHARED_ACCOUNT_WITHDRAW = 'openapi:shared-account:withdraw';
+    case SHARED_ACCOUNT_CANCEL = 'openapi:shared-account:cancel';
+
+    public function code(): string
+    {
+        return $this->value;
+    }
+}
+
 enum CurrencyCode: string { case USD = 'USD'; case HKD = 'HKD'; case EUR = 'EUR'; }
 enum WalletStatus: string { case ACTIVE = 'ACTIVE'; case DISABLED = 'DISABLED'; }
 enum CardType: string { case RECHARGE = 'RECHARGE'; case SHARED = 'SHARED'; }
@@ -13,9 +39,12 @@ enum SharedAccountStatus: string { case APPLYING = 'APPLYING'; case ACTIVE = 'AC
 enum AvailabilityFlag: int { case NO = 0; case YES = 1; }
 enum SharedAccountTransactionType: int { case DEPOSIT = 101; case WITHDRAW = 102; case SHARED_ACCOUNT_ADJUST = 103; case CARD_TRANSACTION = 1; }
 enum TradeStatus: string { case SUCCESS = 'SUCCESS'; case FAIL = 'FAIL'; case PROCESSING = 'PROCESSING'; case PENDING = 'PENDING'; case REFUND_PENDING = 'REFUND_PENDING'; case REFUND = 'REFUND'; }
+enum SettleStatus: string { case SETTLED = 'SETTLED'; case PROCESSING = 'PROCESSING'; case PENDING = 'PENDING'; case NOT_SETTLE = 'NOT_SETTLE'; }
 enum MemberTradeType: string { case AUTH = 'AUTH'; case AUTH_VERIFY = 'AUTH_VERIFY'; case AUTH_REVOKE = 'AUTH_REVOKE'; case AUTH_REFUND = 'AUTH_REFUND'; case AUTH_CORRECTIVE = 'AUTH_CORRECTIVE'; case AUTH_REFUND_REVERSAL = 'AUTH_REFUND_REVERSAL'; case DISPUTED_REFUSAL = 'DISPUTED_REFUSAL'; }
 enum TransactionDirection: int { case TRANSFER_IN = 1; case TRANSFER_OUT = 2; }
 enum ProcessStatus: string { case PENDING = 'PENDING'; case PROCESSING = 'PROCESSING'; case SUCCESS = 'SUCCESS'; case FAIL = 'FAIL'; }
+enum RechargeCardOperationType: string { case RECHARGE = 'RECHARGE'; case WITHDRAW = 'WITHDRAW'; case MODIFY_LIMITS = 'MODIFY_LIMITS'; }
+enum RechargeCardOperationStatus: string { case PENDING = 'PENDING'; case PROCESSING = 'PROCESSING'; case SUCCESS = 'SUCCESS'; case FAIL = 'FAIL'; }
 enum SharedAccountOpenStatus: string { case SUCCESS = 'SUCCESS'; case FAIL = 'FAIL'; case PROCESSING = 'PROCESSING'; }
 enum WalletTransactionType: int { case DEPOSIT = 101; case WITHDRAW = 102; case WALLET_ADJUST = 103; case FREEZE = 201; case UNFREEZE = 202; case APPLY_CARD_FEE = 1; case CARD_RECHARGE = 2; case CARD_RECHARGE_FEE = 3; case CARD_REVOKE_FEE = 4; case CARD_MIN_AMOUNT_FEE = 5; case CARD_AUTH_FEE = 6; case CARD_CROSS_BORDER_FEE = 7; case CARD_OUT = 8; case REFUND = 9; case CARD_OUT_FEE = 10; case TRANSFER_IN = 11; case TRANSFER_OUT = 12; case APPLY_ACCOUNT_FEE = 13; case ACCOUNT_SERVICE_FEE = 14; case SHARED_ACCOUNT_RECHARGE = 15; case SHARED_ACCOUNT_REDUCE = 16; case CARD_REFUND_FEE = 17; }
 enum WalletTransactionDirection: int { case TRANSFER_INTO = 1; case TRANSFER_OUT = 2; }
