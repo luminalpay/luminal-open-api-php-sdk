@@ -38,7 +38,7 @@ final class CardsApi
     {
     }
 
-    /** Lists available card BIN products. */
+    /** Lists available card BIN products, optionally filtered by card pool. */
     public function bins(CardBinsRequest $request): ?PageResult
     {
         return self::page($this->post('/bins', $request), CardBinResponse::class);

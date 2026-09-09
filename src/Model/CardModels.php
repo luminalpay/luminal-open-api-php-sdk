@@ -10,35 +10,110 @@ use DateTimeImmutable;
 /** Card request and response models. */
 final class CardBinsRequest extends JsonModel
 {
+    public readonly ?int $pageNo;
+    public readonly ?int $pageSize;
+    public readonly int|string|null $cardPoolId;
+    public readonly ?string $cardType;
+    public readonly ?string $cardOrganization;
+    public readonly ?string $cardBin;
+    public readonly ?string $areaCode;
+
     public function __construct(
-        public readonly ?int $pageNo = null,
-        public readonly ?int $pageSize = null,
-        public readonly ?string $cardType = null,
-        public readonly ?string $cardOrganization = null,
-        public readonly ?string $cardBin = null,
-        public readonly ?string $areaCode = null,
+        ?int $pageNo = null,
+        ?int $pageSize = null,
+        int|string|null $cardPoolId = null,
+        ?string $cardType = null,
+        ?string $cardOrganization = null,
+        ?string $cardBin = null,
+        ?string $areaCode = null,
     ) {
+        // Preserve the previous positional order (..., cardType, cardOrganization, cardBin, areaCode).
+        if (is_string($cardPoolId) && !is_numeric($cardPoolId)) {
+            $legacyCardType = $cardPoolId;
+            $legacyCardOrganization = $cardType;
+            $legacyCardBin = $cardOrganization;
+            $legacyAreaCode = $cardBin;
+            $cardPoolId = null;
+            $cardType = $legacyCardType;
+            $cardOrganization = $legacyCardOrganization;
+            $cardBin = $legacyCardBin;
+            $areaCode = $legacyAreaCode;
+        }
+        $this->pageNo = $pageNo;
+        $this->pageSize = $pageSize;
+        $this->cardPoolId = $cardPoolId;
+        $this->cardType = $cardType;
+        $this->cardOrganization = $cardOrganization;
+        $this->cardBin = $cardBin;
+        $this->areaCode = $areaCode;
     }
 
     protected function validateModel(): void
     {
         $this->validatePage($this->pageNo, $this->pageSize);
+        $this->validateOptionalId($this->cardPoolId, 'cardPoolId');
     }
 }
 
 final class CardBinResponse extends JsonModel
 {
+    public readonly int|string|null $cardBinId;
+    public readonly int|string|null $cardPoolId;
+    public readonly ?string $poolName;
+    public readonly ?string $cardType;
+    public readonly ?string $currencyCode;
+    public readonly ?string $areaCode;
+    public readonly ?string $cardBin;
+    public readonly ?string $cardOrganization;
+    public readonly ?string $applicableScenarios;
+    public readonly ?int $customCardholder;
+    public readonly ?int $canLimit;
+
     public function __construct(
-        public readonly int|string|null $cardBinId = null,
-        public readonly ?string $cardType = null,
-        public readonly ?string $currencyCode = null,
-        public readonly ?string $areaCode = null,
-        public readonly ?string $cardBin = null,
-        public readonly ?string $cardOrganization = null,
-        public readonly ?string $applicableScenarios = null,
-        public readonly ?int $customCardholder = null,
-        public readonly ?int $canLimit = null,
+        int|string|null $cardBinId = null,
+        mixed $cardPoolId = null,
+        mixed $poolName = null,
+        mixed $cardType = null,
+        mixed $currencyCode = null,
+        mixed $areaCode = null,
+        mixed $cardBin = null,
+        mixed $cardOrganization = null,
+        mixed $applicableScenarios = null,
+        mixed $customCardholder = null,
+        mixed $canLimit = null,
     ) {
+        // Preserve the previous response constructor shape without pool fields.
+        if (is_string($cardPoolId) && !is_numeric($cardPoolId)) {
+            $legacyCardType = $cardPoolId;
+            $legacyCurrencyCode = $poolName;
+            $legacyAreaCode = $cardType;
+            $legacyCardBin = $currencyCode;
+            $legacyCardOrganization = $areaCode;
+            $legacyApplicableScenarios = $cardBin;
+            $legacyCustomCardholder = $cardOrganization;
+            $legacyCanLimit = $applicableScenarios;
+            $cardPoolId = null;
+            $poolName = null;
+            $cardType = $legacyCardType;
+            $currencyCode = $legacyCurrencyCode;
+            $areaCode = $legacyAreaCode;
+            $cardBin = $legacyCardBin;
+            $cardOrganization = $legacyCardOrganization;
+            $applicableScenarios = $legacyApplicableScenarios;
+            $customCardholder = $legacyCustomCardholder;
+            $canLimit = $legacyCanLimit;
+        }
+        $this->cardBinId = $cardBinId;
+        $this->cardPoolId = $cardPoolId;
+        $this->poolName = $poolName;
+        $this->cardType = $cardType;
+        $this->currencyCode = $currencyCode;
+        $this->areaCode = $areaCode;
+        $this->cardBin = $cardBin;
+        $this->cardOrganization = $cardOrganization;
+        $this->applicableScenarios = $applicableScenarios;
+        $this->customCardholder = $customCardholder;
+        $this->canLimit = $canLimit;
     }
 }
 

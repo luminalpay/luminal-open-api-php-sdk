@@ -93,6 +93,7 @@ API groups and `Client` accept `TransportInterface`. Use a custom implementation
 | `sharedAccounts()->cancel()` | `/open-api/v1/shared-account/cancel` | Cancel a shared account with an email/OTP verification code. |
 | `sharedAccounts()->details()` | `/open-api/v1/shared-account/details` | Retrieve shared-account details. |
 | `sharedAccounts()->transactions()` | `/open-api/v1/shared-account/transactions` | List shared-account transactions. |
+| `cardPools()->list()` | `/open-api/v1/cards/pools` | List available card pools as a plain list. |
 | `cards()->bins()` | `/open-api/v1/cards/bins` | List available card BIN products. |
 | `cards()->issue()` | `/open-api/v1/cards/issue` | Submit a signed card issuance request. |
 | `cards()->list()` | `/open-api/v1/cards/list` | List issued cards. |
@@ -149,6 +150,33 @@ $canceled = $client->sharedAccounts()->cancel(new SharedAccountCancelRequest(
     verifyCode: $verificationCode,
 ));
 ```
+
+`CardPoolRequest` only filters by pool ID and name; `cardBinId` is not a pool-list condition. Card-pool shared-account
+opening first selects a pool, then resolves a SHARED BIN within that pool. Shared-account creation may use
+`cardPoolId` without `cardBinId`; card issuance continues to require `cardBinId`:
+
+```php
+use Luminal\OpenApiSdk\Model\CardBinsRequest;
+use Luminal\OpenApiSdk\Model\CardPoolRequest;
+use Luminal\OpenApiSdk\Model\CreateSharedAccountRequest;
+
+$pools = $client->cardPools()->list(new CardPoolRequest());
+$pool = $pools[0] ?? throw new RuntimeException('No card pool is available.');
+$bins = $client->cards()->bins(new CardBinsRequest(
+    pageNo: 1,
+    pageSize: 20,
+    cardPoolId: $pool->cardPoolId,
+    cardType: 'SHARED',
+));
+$sharedAccount = $client->sharedAccounts()->create(new CreateSharedAccountRequest(
+    cardPoolId: $pool->cardPoolId,
+    rechargeAmount: '100.00',
+    accountName: 'Main account',
+));
+```
+
+Shared-account creation may use `cardPoolId` when the BIN is selected from a pool. Card issuance continues to
+require `cardBinId`.
 
 Cardholder management uses `DateTimeImmutable` for `birthDate`; it is sent as a date-only `Y-m-d` value:
 
@@ -284,12 +312,22 @@ exact-byte verification, tampered bodies, all supported event types, invalid sig
 
 ### Sandbox integration tests
 
-The Java-aligned shared-card flow is in
+The Java-aligned fixed-BIN shared-card flow is in
 `tests/Integration/ShareCardSandboxOpenApiIntegrationTest.php`:
 
 ```powershell
 vendor\bin\phpunit -c phpunit.xml.dist tests\Integration\ShareCardSandboxOpenApiIntegrationTest.php
 ```
+
+The pool-based shared-card flow reuses the complete shared-card test suite and selects the first cached card pool and
+its SHARED BIN. It is in `tests/Integration/CardPoolSharedAccountSandboxOpenApiIntegrationTest.php`:
+
+```powershell
+vendor\bin\phpunit -c phpunit.xml.dist tests\Integration\CardPoolSharedAccountSandboxOpenApiIntegrationTest.php
+```
+
+The pool flow opens the shared account with an initial amount of `100.00`; card issuance still sends the selected
+`cardBinId`.
 
 The recharge-card flow is independent and is in
 `tests/Integration/RechargeCardSandboxOpenApiIntegrationTest.php`:

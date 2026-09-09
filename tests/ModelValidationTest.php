@@ -127,9 +127,27 @@ final class ModelValidationTest extends TestCase
             (new IssueCardDetailsRequest(1001))->toArray(),
         );
         self::assertSame(
-            ['cardBinId' => 1001, 'rechargeAmount' => 100, 'accountName' => 'Travel'],
+            ['cardBinId' => 1001, 'cardPoolId' => null, 'rechargeAmount' => 100, 'accountName' => 'Travel'],
             (new CreateSharedAccountRequest(1001, 100, 'Travel'))->toArray(),
         );
+    }
+
+    public function testSupportsCardPoolSelectors(): void
+    {
+        self::assertSame(
+            [
+                'cardBinId' => null,
+                'cardPoolId' => 9001,
+                'rechargeAmount' => '100.00',
+                'accountName' => 'Pool account',
+            ],
+            (new CreateSharedAccountRequest(
+                cardPoolId: 9001,
+                rechargeAmount: '100.00',
+                accountName: 'Pool account',
+            ))->toArray(),
+        );
+
     }
 }
 

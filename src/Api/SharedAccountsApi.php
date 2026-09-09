@@ -28,13 +28,13 @@ final class SharedAccountsApi
     {
     }
 
-    /** Creates and initially funds a shared account. */
+    /** Creates and initially funds a shared account using a BIN and/or card pool. */
     public function create(CreateSharedAccountRequest $request): ?SharedAccountIdResponse
     {
         return self::objectResult($this->post('/create', $request), SharedAccountIdResponse::class);
     }
 
-    /** Lists shared accounts for the current member. */
+    /** Lists shared accounts for the current member, optionally filtered by card pool. */
     public function list(SharedAccountPageRequest $request): ?PageResult
     {
         return self::page($this->post('/list', $request), SharedAccountResponse::class);

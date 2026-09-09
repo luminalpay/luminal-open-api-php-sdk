@@ -7,18 +7,25 @@ namespace Luminal\OpenApiSdk\Tests\Integration;
 use Luminal\OpenApiSdk\ApiException;
 use Luminal\OpenApiSdk\Client;
 use Luminal\OpenApiSdk\Model\AuthTokenRequest;
+use Luminal\OpenApiSdk\Model\CardBinResponse;
 use Luminal\OpenApiSdk\Model\CardBinsRequest;
+use Luminal\OpenApiSdk\Model\CardCvvResponse;
 use Luminal\OpenApiSdk\Model\CardGroupCreateRequest;
 use Luminal\OpenApiSdk\Model\CardGroupDeleteRequest;
 use Luminal\OpenApiSdk\Model\CardGroupRequest;
+use Luminal\OpenApiSdk\Model\CardGroupResponse;
 use Luminal\OpenApiSdk\Model\CardGroupUpdateRequest;
 use Luminal\OpenApiSdk\Model\CardIdRequest;
+use Luminal\OpenApiSdk\Model\CardLimitResponse;
 use Luminal\OpenApiSdk\Model\CardLimitUpdateRequest;
 use Luminal\OpenApiSdk\Model\CardTransactionsRequest;
+use Luminal\OpenApiSdk\Model\CardPoolRequest;
+use Luminal\OpenApiSdk\Model\CardPoolResponse;
 use Luminal\OpenApiSdk\Model\CreateSharedAccountRequest;
 use Luminal\OpenApiSdk\Model\IssueCardDetailsRequest;
 use Luminal\OpenApiSdk\Model\IssueCardRequest;
 use Luminal\OpenApiSdk\Model\MemberCardPageRequest;
+use Luminal\OpenApiSdk\Model\MemberCardResponse;
 use Luminal\OpenApiSdk\Model\RefreshTokenRequest;
 use Luminal\OpenApiSdk\Model\SharedAccountBalanceRequest;
 use Luminal\OpenApiSdk\Model\SharedAccountGetRequest;
@@ -36,9 +43,11 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 #[Group('integration')]
-final class ShareCardSandboxOpenApiIntegrationTest extends TestCase
+class ShareCardSandboxOpenApiIntegrationTest extends TestCase
 {
     private const DEFAULT_BASE_URL = 'https://sandbox-openapi.luminalads.com';
+    private const TEST_CARD_BIN = '22346703';
+    private const SHARED_CARD_TYPE = 'SHARED';
     private const DEFAULT_WEBHOOK_HOST = '0.0.0.0';
     private const DEFAULT_WEBHOOK_PORT = 18081;
     private const DEFAULT_WEBHOOK_PATH = '/luminal-open-api-webhook';
@@ -51,6 +60,9 @@ final class ShareCardSandboxOpenApiIntegrationTest extends TestCase
     private static int|string|null $cachedCardGroupId = null;
     private static int|string|null $cachedIssueTaskId = null;
     private static int|string|null $cachedCardId = null;
+    private static ?CardBinResponse $cachedCardBin = null;
+    private static ?CardPoolResponse $cachedCardPool = null;
+    private static bool $cardPoolFlow = false;
     private static mixed $webhookProcess = null;
     private static ?string $webhookEventDirectory = null;
     private const APP_ID = 'lpsha6pj5mwsb7tz';
@@ -103,6 +115,7 @@ KEY;
     public static function setUpBeforeClass(): void
     {
         parent::setUpBeforeClass();
+        self::resetFlowState();
         self::startWebhookListener();
     }
 
@@ -110,6 +123,26 @@ KEY;
     {
         self::stopWebhookListener();
         parent::tearDownAfterClass();
+    }
+
+    /** Enables pool-based resource selection for the inheriting Sandbox flow. */
+    protected static function useCardPoolFlow(): void
+    {
+        self::$cardPoolFlow = true;
+    }
+
+    private static function resetFlowState(): void
+    {
+        self::$managedClient = null;
+        self::$cachedToken = null;
+        self::$tokenFlowReady = false;
+        self::$cachedSharedAccountId = null;
+        self::$cachedCardGroupId = null;
+        self::$cachedIssueTaskId = null;
+        self::$cachedCardId = null;
+        self::$cachedCardBin = null;
+        self::$cachedCardPool = null;
+        self::$cardPoolFlow = false;
     }
 
     public function testGetsTokenFromSandbox(): void
@@ -164,16 +197,7 @@ KEY;
     public function testCreatesFundsAndReadsSharedAccountInSandbox(): void
     {
         $client = self::authorizedClient();
-        try {
-            $bins = $client->cards()->bins(new CardBinsRequest(
-                pageNo: 1,
-                pageSize: 20,
-                cardType: 'SHARED',
-                cardBin: '22346703'
-            ));
-        } catch (\Throwable $exception) {
-        }
-        $binId = self::firstId($bins, 'cardBinId', 'No shared card BIN is available in Sandbox.');
+        $binId = self::firstCardBinId();
 
         $created = self::sharedAccountFixture($client, $binId);
         self::assertNotNull($created);
@@ -206,6 +230,11 @@ KEY;
         );
         $details = $client->sharedAccounts()->details(new SharedAccountGetRequest($accountId));
         self::assertNotNull($details);
+        self::assertSame((string)$accountId, (string)$details->memberSharedAccountId);
+        self::assertSame((string)$binId, (string)$details->cardBinId);
+        if (self::$cardPoolFlow) {
+            self::assertSame((string)self::currentCardPoolId(), (string)$details->cardPoolId);
+        }
 
         $transactions = $client->sharedAccounts()->transactions(new SharedAccountTransactionsRequest(
             pageNo: 1,
@@ -213,6 +242,7 @@ KEY;
             memberSharedAccountId: $accountId,
         ));
         self::assertInstanceOf(PageResult::class, $transactions);
+        self::assertNotNull($transactions->list);
     }
 
     public function testIssuesCardsWithProvidedAndPrivateKeySignaturesInSandbox(): void
@@ -220,16 +250,7 @@ KEY;
         $privateKey = self::privateKey();
 
         $client = self::authorizedClient();
-        try {
-            $bins = $client->cards()->bins(new CardBinsRequest(
-                pageNo: 1,
-                pageSize: 20,
-                cardType: 'SHARED',
-                cardBin: '22346703'
-            ));
-        } catch (\Throwable $exception) {
-        }
-        $binId = self::firstId($bins, 'cardBinId', 'No shared card BIN is available in Sandbox.');
+        $binId = self::firstCardBinId();
         $accountId = self::sharedAccountId($client);
         $groupId = self::sharedCardGroupId($client);
 
@@ -256,6 +277,7 @@ KEY;
             pageSize: 20,
         ));
         self::assertInstanceOf(PageResult::class, $transactions);
+        self::assertNotNull($transactions->list);
     }
 
     public function testListsAndReadsSharedAccountsFromSandbox(): void
@@ -266,6 +288,7 @@ KEY;
             $accounts = $client->sharedAccounts()->list(new SharedAccountPageRequest(
                 pageNo: 1,
                 pageSize: 20,
+                cardPoolId: self::currentCardPoolId(),
             ));
         } catch (ApiException $exception) {
             if (str_contains($exception->getMessage(), 'Account is not logged in')) {
@@ -273,9 +296,20 @@ KEY;
             throw $exception;
         }
         self::assertInstanceOf(PageResult::class, $accounts);
+        self::assertNotNull($accounts->list);
+        self::assertTrue(array_filter(
+            $accounts->list,
+            static fn (mixed $account): bool => is_object($account)
+                && (string)($account->memberSharedAccountId ?? '') === (string)$accountId,
+        ) !== []);
 
         $details = $client->sharedAccounts()->details(new SharedAccountGetRequest($accountId));
         self::assertNotNull($details);
+        self::assertSame((string)$accountId, (string)$details->memberSharedAccountId);
+        self::assertSame((string)self::firstCardBinId(), (string)$details->cardBinId);
+        if (self::$cardPoolFlow) {
+            self::assertSame((string)self::currentCardPoolId(), (string)$details->cardPoolId);
+        }
 
         $transactions = $client->sharedAccounts()->transactions(new SharedAccountTransactionsRequest(
             pageNo: 1,
@@ -283,35 +317,49 @@ KEY;
             memberSharedAccountId: $accountId,
         ));
         self::assertInstanceOf(PageResult::class, $transactions);
+        self::assertNotNull($transactions->list);
     }
 
     public function testListsAndReadsCardsFromSandbox(): void
     {
         $client = self::authorizedClient();
         $cardId = self::ensureCardId($client);
-        try {
-            $bins = $client->cards()->bins(new CardBinsRequest(
-                pageNo: 1,
-                pageSize: 20,
-                cardType: 'SHARED',
-                cardBin: '22346703'
-            ));
-        } catch (ApiException $exception) {
-            if (str_contains($exception->getMessage(), 'Account is not logged in')) {
-            }
-            throw $exception;
-        }
+        $bins = $client->cards()->bins(new CardBinsRequest(
+            pageNo: 1,
+            pageSize: 20,
+            cardPoolId: self::currentCardPoolId(),
+            cardType: self::SHARED_CARD_TYPE,
+            cardBin: self::TEST_CARD_BIN,
+        ));
         self::assertInstanceOf(PageResult::class, $bins);
+        self::assertNotNull($bins->list);
+        self::assertTrue(array_filter(
+            $bins->list,
+            static fn (mixed $bin): bool => is_object($bin)
+                && (string)($bin->cardBinId ?? '') === (string)self::firstCardBinId(),
+        ) !== []);
 
         $cards = $client->cards()->list(new MemberCardPageRequest(
             pageNo: 1,
             pageSize: 20,
+            memberCardId: $cardId,
             cardType: 'SHARED',
         ));
         self::assertInstanceOf(PageResult::class, $cards);
+        self::assertNotNull($cards->list);
+        self::assertTrue(array_filter(
+            $cards->list,
+            static fn (mixed $card): bool => $card instanceof MemberCardResponse
+                && (string)($card->memberCardId ?? '') === (string)$cardId,
+        ) !== []);
 
         $cvv = $client->cards()->cvv(new CardIdRequest($cardId));
+        self::assertInstanceOf(CardCvvResponse::class, $cvv);
         self::assertNotNull($cvv);
+        self::assertSame((string)$cardId, (string)$cvv->memberCardId);
+        self::assertNotNull($cvv->cardNo);
+        self::assertNotNull($cvv->cvv);
+        self::assertNotNull($cvv->expiryDate);
 
         $transactions = $client->cards()->transactions(new CardTransactionsRequest(
             pageNo: 1,
@@ -320,9 +368,12 @@ KEY;
             memberCardId: $cardId,
         ));
         self::assertInstanceOf(PageResult::class, $transactions);
+        self::assertNotNull($transactions->list);
 
         $limit = $client->cards()->limit(new CardIdRequest($cardId));
+        self::assertInstanceOf(CardLimitResponse::class, $limit);
         self::assertNotNull($limit);
+        self::assertSame((string)$cardId, (string)$limit->memberCardId);
     }
 
     public function testGetsCardIssueDetailsFromSandbox(): void
@@ -357,6 +408,12 @@ KEY;
             throw $exception;
         }
         self::assertInstanceOf(PageResult::class, $groups);
+        self::assertNotNull($groups->list);
+        self::assertTrue(array_filter(
+            $groups->list,
+            static fn (mixed $group): bool => $group instanceof CardGroupResponse
+                && (string)($group->cardGroupId ?? '') === (string)self::sharedCardGroupId(self::authorizedClient()),
+        ) !== []);
     }
 
     public function testCreatesUpdatesAndDeletesCardGroupInSandbox(): void
@@ -548,10 +605,87 @@ KEY;
             cardBinId: $binId,
             cardGroupId: $groupId,
             cardName: 'sdk-php-' . $suffix . '-' . bin2hex(random_bytes(3)),
-            cardType: 'SHARED',
+            cardType: self::SHARED_CARD_TYPE,
             memberSharedAccountId: $accountId,
             rechargeAmount: self::configured('LUMINAL_OPEN_API_CARD_RECHARGE_AMOUNT', '1.00'),
         );
+    }
+
+    /** Returns the first selected shared-card BIN, resolving it within the selected pool when enabled. */
+    private static function firstCardBin(): CardBinResponse
+    {
+        if (self::$cachedCardBin instanceof CardBinResponse) {
+            return self::$cachedCardBin;
+        }
+
+        $bins = self::authorizedClient()->cards()->bins(new CardBinsRequest(
+            pageNo: 1,
+            pageSize: 20,
+            cardPoolId: self::currentCardPoolId(),
+            cardType: self::SHARED_CARD_TYPE,
+            cardBin: self::TEST_CARD_BIN,
+        ));
+        self::assertNotNull($bins);
+        self::assertNotNull($bins->list);
+        self::assertNotEmpty($bins->list, 'No shared-card BIN was returned by Sandbox.');
+
+        foreach ($bins->list as $item) {
+            if (!$item instanceof CardBinResponse
+                || strcasecmp((string)$item->cardType, self::SHARED_CARD_TYPE) !== 0
+                || (string)$item->cardBin !== self::TEST_CARD_BIN) {
+                continue;
+            }
+            if (self::$cardPoolFlow && $item->cardPoolId !== null
+                && (string)$item->cardPoolId !== (string)self::currentCardPoolId()) {
+                continue;
+            }
+            self::$cachedCardBin = $item;
+            break;
+        }
+
+        self::assertNotNull(self::$cachedCardBin, 'No matching shared-card BIN was returned by Sandbox.');
+        return self::$cachedCardBin;
+    }
+
+    private static function firstCardBinId(): int|string
+    {
+        return self::id(self::firstCardBin()->cardBinId, 'cardBinId');
+    }
+
+    /** Selects and caches the first Sandbox card pool for the pool-based flow. */
+    protected static function selectedCardPool(): ?CardPoolResponse
+    {
+        if (!self::$cardPoolFlow) {
+            return null;
+        }
+        if (!self::$cachedCardPool instanceof CardPoolResponse) {
+            $pools = self::authorizedClient()->cardPools()->list(new CardPoolRequest());
+            self::assertNotNull($pools);
+            self::assertNotEmpty($pools, 'No available card pool was returned by Sandbox.');
+            foreach ($pools as $pool) {
+                if ($pool instanceof CardPoolResponse) {
+                    self::$cachedCardPool = $pool;
+                    break;
+                }
+            }
+            self::assertNotNull(self::$cachedCardPool, 'No available card pool was returned by Sandbox.');
+            self::assertNotNull(self::$cachedCardPool->cardPoolId, 'Selected card pool ID is missing.');
+        }
+        return self::$cachedCardPool;
+    }
+
+    private static function currentCardPoolId(): int|string|null
+    {
+        return self::$cardPoolFlow
+            ? self::id(self::selectedCardPool()?->cardPoolId, 'cardPoolId')
+            : null;
+    }
+
+    private static function sharedAccountAmount(): string
+    {
+        return self::$cardPoolFlow
+            ? '100.00'
+            : (self::configured('LUMINAL_OPEN_API_CREATE_AMOUNT', '100.00') ?? '100.00');
     }
 
     private static function firstId(?PageResult $page, string $field, string $message): int|string
@@ -819,8 +953,7 @@ KEY;
             return self::$cachedCardId;
         }
 
-        $bins = $client->cards()->bins(new CardBinsRequest(pageNo: 1, pageSize: 20, cardType: 'SHARED', cardBin: '22346703'));
-        $binId = self::firstId($bins, 'cardBinId', 'No shared card BIN is available in Sandbox.');
+        $binId = self::firstCardBinId();
         $accountId = self::sharedAccountId($client);
         $groupId = self::sharedCardGroupId($client);
         $taskId = self::issueOnce($client, self::issueRequest($binId, $groupId, $accountId, 'auto'));
@@ -833,8 +966,7 @@ KEY;
         if (self::$cachedSharedAccountId !== null) {
             return self::$cachedSharedAccountId;
         }
-        $bins = $client->cards()->bins(new CardBinsRequest(pageNo: 1, pageSize: 20, cardType: 'SHARED', cardBin: '22346703'));
-        $binId = self::firstId($bins, 'cardBinId', 'No shared card BIN is available in Sandbox.');
+        $binId = self::firstCardBinId();
         $created = self::sharedAccountFixture($client, $binId);
         self::$cachedSharedAccountId = self::id($created?->memberSharedAccountId, 'memberSharedAccountId');
         return self::$cachedSharedAccountId;
@@ -857,20 +989,23 @@ KEY;
             return (object)['memberSharedAccountId' => self::$cachedSharedAccountId];
         }
         $name = 'sdk-php-' . bin2hex(random_bytes(4));
-        try {
-            $created = $client->sharedAccounts()->create(new CreateSharedAccountRequest(
-                cardBinId: $binId,
-                rechargeAmount: self::configured('LUMINAL_OPEN_API_CREATE_AMOUNT', '100.00'),
+        $request = self::$cardPoolFlow
+            ? new CreateSharedAccountRequest(
+                cardPoolId: self::currentCardPoolId(),
+                rechargeAmount: self::sharedAccountAmount(),
                 accountName: $name,
-            ));
+            )
+            : new CreateSharedAccountRequest(
+                cardBinId: $binId,
+                rechargeAmount: self::sharedAccountAmount(),
+                accountName: $name,
+            );
+        try {
+            $created = $client->sharedAccounts()->create($request);
         } catch (ApiException $exception) {
             if ($exception->getMessage() === 'System error') {
                 usleep(500000);
-                $created = $client->sharedAccounts()->create(new CreateSharedAccountRequest(
-                    cardBinId: $binId,
-                    rechargeAmount: self::configured('LUMINAL_OPEN_API_CREATE_AMOUNT', '100.00'),
-                    accountName: $name,
-                ));
+                $created = $client->sharedAccounts()->create($request);
             } else {
                 throw $exception;
             }
@@ -879,6 +1014,48 @@ KEY;
         self::awaitSharedAccountOpenStatus($client, $accountId);
         self::$cachedSharedAccountId = $accountId;
         return $created;
+    }
+
+    /** Creates an additional shared account with a BIN explicitly belonging to the selected card pool. */
+    protected static function createSharedAccountWithCardBinAndCardPool(): int|string
+    {
+        $client = self::authorizedClient();
+        $poolId = self::id(self::currentCardPoolId(), 'cardPoolId');
+        $bins = $client->cards()->bins(new CardBinsRequest(
+            pageNo: 1,
+            pageSize: 20,
+            cardPoolId: $poolId,
+            cardType: self::SHARED_CARD_TYPE,
+            cardBin: self::TEST_CARD_BIN,
+        ));
+        self::assertNotNull($bins);
+        self::assertNotNull($bins->list);
+        self::assertNotEmpty($bins->list, 'No shared-card BIN was returned by Sandbox.');
+
+        $selectedBin = null;
+        foreach ($bins->list as $item) {
+            if (!$item instanceof CardBinResponse
+                || strcasecmp((string)$item->cardType, self::SHARED_CARD_TYPE) !== 0
+                || (string)$item->cardBin !== self::TEST_CARD_BIN
+                || $item->cardPoolId === null
+                || (string)$item->cardPoolId !== (string)$poolId) {
+                continue;
+            }
+            $selectedBin = $item;
+            break;
+        }
+        self::assertNotNull($selectedBin, 'Selected card BIN does not belong to the selected card pool.');
+        $binId = self::id($selectedBin->cardBinId, 'cardBinId');
+
+        $created = $client->sharedAccounts()->create(new CreateSharedAccountRequest(
+            cardBinId: $binId,
+            cardPoolId: $poolId,
+            rechargeAmount: self::sharedAccountAmount(),
+            accountName: 'sdk-php-bin-pool-' . bin2hex(random_bytes(4)),
+        ));
+        $accountId = self::id($created?->memberSharedAccountId, 'memberSharedAccountId');
+        self::awaitSharedAccountOpenStatus($client, $accountId);
+        return $accountId;
     }
 
     private static function startWebhookListener(): void
