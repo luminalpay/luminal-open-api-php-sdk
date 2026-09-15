@@ -94,6 +94,17 @@ final class ModelValidationTest extends TestCase
         );
         self::assertSame(
             [
+                'pageNo' => 1,
+                'pageSize' => 10,
+                'type' => 1,
+                'orderNo' => 'O1',
+                'createTime' => null,
+                'memberCardId' => null,
+            ],
+            (new WalletTransactionRequest(1, 10, 1, 'O1'))->toArray(),
+        );
+        self::assertSame(
+            [
                 'applyCount' => 1,
                 'cardBinId' => 1001,
                 'cardGroupId' => null,
@@ -130,6 +141,21 @@ final class ModelValidationTest extends TestCase
             ['cardBinId' => 1001, 'cardPoolId' => null, 'rechargeAmount' => 100, 'accountName' => 'Travel'],
             (new CreateSharedAccountRequest(1001, 100, 'Travel'))->toArray(),
         );
+    }
+
+    public function testPreservesWalletTransactionRequestLegacyPositionalOrder(): void
+    {
+        $request = new WalletTransactionRequest(
+            1,
+            10,
+            1,
+            [new DateTimeImmutable('2025-01-01T00:00:00')],
+            8,
+        );
+
+        self::assertNull($request->orderNo);
+        self::assertSame(8, $request->memberCardId);
+        self::assertCount(1, $request->createTime);
     }
 
     public function testSupportsCardPoolSelectors(): void

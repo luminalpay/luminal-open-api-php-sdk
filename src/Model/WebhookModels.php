@@ -68,21 +68,99 @@ final class SharedAccountOpenStatusWebhook extends JsonModel
     }
 }
 
+/** Payload for the WALLET_TRANSACTIONS webhook event. */
+final class WalletTransactionWebhook extends JsonModel
+{
+    public function __construct(
+        public readonly int|string|null $transactionNo = null,
+        public readonly int|string|null $memberNo = null,
+        public readonly int|string|null $walletNo = null,
+        public readonly ?string $orderNo = null,
+        public readonly ?int $type = null,
+        public readonly ?int $direction = null,
+        public readonly int|float|string|null $amount = null,
+        public readonly int|float|string|null $fee = null,
+        public readonly ?string $currency = null,
+        public readonly int|float|string|null $beforeBalance = null,
+        public readonly int|float|string|null $afterBalance = null,
+        public readonly ?int $status = null,
+        public readonly ?string $remark = null,
+        public readonly ?DateTimeImmutable $createTime = null,
+        public readonly int|string|null $memberCardId = null,
+        public readonly ?string $cardNumber = null,
+    ) {
+    }
+}
+
 /** Payload for recharge-card funding, withdrawal, and limit-operation webhooks. */
 final class RechargeCardTransferStatusWebhook extends JsonModel
 {
+    public readonly int|string|null $memberCardOperationRecordId;
+    public readonly int|string|null $memberCardId;
+    public readonly ?string $cardType;
+    public readonly ?string $operationType;
+    public readonly int|float|string|null $amount;
+    public readonly ?string $currencyCode;
+    public readonly int|float|string|null $balance;
+    public readonly int|float|string|null $totalLimit;
+    public readonly int|float|string|null $dailyLimit;
+    public readonly int|float|string|null $monthLimit;
+    public readonly ?string $status;
+    public readonly ?string $message;
+    public readonly ?DateTimeImmutable $updateTime;
+
     public function __construct(
-        public readonly int|string|null $memberCardOperationRecordId = null,
-        public readonly int|string|null $memberCardId = null,
-        public readonly ?string $cardType = null,
-        public readonly ?string $operationType = null,
-        public readonly int|float|string|null $amount = null,
-        public readonly ?string $currencyCode = null,
-        public readonly int|float|string|null $balance = null,
-        public readonly ?string $status = null,
-        public readonly ?string $message = null,
-        public readonly ?DateTimeImmutable $updateTime = null,
+        int|string|null $memberCardOperationRecordId = null,
+        int|string|null $memberCardId = null,
+        ?string $cardType = null,
+        ?string $operationType = null,
+        int|float|string|null $amount = null,
+        ?string $currencyCode = null,
+        int|float|string|null $balance = null,
+        mixed $totalLimit = null,
+        mixed $dailyLimit = null,
+        mixed $monthLimit = null,
+        mixed $status = null,
+        ?string $message = null,
+        ?DateTimeImmutable $updateTime = null,
     ) {
+        // Preserve the original positional constructor shape without limit fields.
+        if ($monthLimit instanceof DateTimeImmutable && $status === null && $message === null && $updateTime === null) {
+            $legacyStatus = $totalLimit;
+            $legacyMessage = $dailyLimit;
+            $legacyUpdateTime = $monthLimit;
+            $totalLimit = null;
+            $dailyLimit = null;
+            $monthLimit = null;
+            $status = is_string($legacyStatus) ? $legacyStatus : null;
+            $message = is_string($legacyMessage) ? $legacyMessage : null;
+            $updateTime = $legacyUpdateTime;
+        // Preserve the intermediate positional shape with totalLimit but without the two card-specific limits.
+        } elseif ($status instanceof DateTimeImmutable && $message === null && $updateTime === null) {
+            $legacyTotalLimit = $totalLimit;
+            $legacyStatus = $dailyLimit;
+            $legacyMessage = $monthLimit;
+            $legacyUpdateTime = $status;
+            $totalLimit = $legacyTotalLimit;
+            $dailyLimit = null;
+            $monthLimit = null;
+            $status = is_string($legacyStatus) ? $legacyStatus : null;
+            $message = is_string($legacyMessage) ? $legacyMessage : null;
+            $updateTime = $legacyUpdateTime;
+        }
+        $this->memberCardOperationRecordId = $memberCardOperationRecordId;
+        $this->memberCardId = $memberCardId;
+        $this->cardType = $cardType;
+        $this->operationType = $operationType;
+        $this->amount = $amount;
+        $this->currencyCode = $currencyCode;
+        $this->balance = $balance;
+        $this->totalLimit = $totalLimit;
+        $this->dailyLimit = $dailyLimit;
+        $this->monthLimit = $monthLimit;
+        $this->status = is_string($status) ? $status : null;
+        $this->message = $message;
+        $this->updateTime = $updateTime;
     }
 }
 

@@ -7,6 +7,7 @@ use Luminal\OpenApiSdk\Model\CardStatusWebhook;
 use Luminal\OpenApiSdk\Model\RechargeCardTransferStatusWebhook;
 use Luminal\OpenApiSdk\Model\SharedAccountOpenStatusWebhook;
 use Luminal\OpenApiSdk\Model\TransactionWebhook;
+use Luminal\OpenApiSdk\Model\WalletTransactionWebhook;
 use Luminal\OpenApiSdk\Webhook\WebhookEventType;
 use Luminal\OpenApiSdk\Webhook\WebhookVerificationException;
 use Luminal\OpenApiSdk\Client;
@@ -43,6 +44,7 @@ if (!is_string($body) || strlen($body) > 1048576) {
 }
 $event = trim((string)($_SERVER['HTTP_EVENT'] ?? ''));
 $targets = [
+    WebhookEventType::WALLET_TRANSACTIONS,
     WebhookEventType::CARD_TRANSACTIONS,
     WebhookEventType::CARD_SETTLE_STATUS,
     WebhookEventType::CARD_OPEN_STATUS,
@@ -66,48 +68,67 @@ try {
         (string)file_get_contents($keyFile),
     );
     $payload = $verified->payload;
-    $correlationId = null;
-    $status = null;
-    if ($payload instanceof CardOpenStatusWebhook) {
-        $correlationId = $payload->cardApplyTaskId;
-        foreach ($payload->list ?? [] as $result) {
-            $candidate = strtoupper(trim((string)$result->cardStatus));
-            if ($candidate === 'SUCCESS' || $candidate === 'FAIL') {
-                $status = $candidate;
-                break;
+    if ($payload instanceof WalletTransactionWebhook) {
+        // Wallet notifications are a stream and do not have an operation-status correlation key.
+        $file = $directory . DIRECTORY_SEPARATOR . 'wallet-' . hash('sha256', $verified->eventId) . '.json';
+    } else {
+        $correlationId = null;
+        $status = null;
+        if ($payload instanceof CardOpenStatusWebhook) {
+            $correlationId = $payload->cardApplyTaskId;
+            foreach ($payload->list ?? [] as $result) {
+                $candidate = strtoupper(trim((string)$result->cardStatus));
+                if ($candidate === 'SUCCESS' || $candidate === 'FAIL') {
+                    $status = $candidate;
+                    break;
+                }
             }
+        } elseif ($payload instanceof SharedAccountOpenStatusWebhook) {
+            $correlationId = $payload->memberSharedAccountId;
+            $status = strtoupper(trim((string)$payload->status));
+        } elseif ($payload instanceof RechargeCardTransferStatusWebhook) {
+            $correlationId = $payload->memberCardOperationRecordId;
+            $status = strtoupper(trim((string)$payload->status));
+            if ($event === WebhookEventType::CARD_LIMIT_STATUS) {
+                $cardType = strtoupper(trim((string)$payload->cardType));
+                if ($status === 'SUCCESS' && $cardType === 'RECHARGE') {
+                    foreach (['totalLimit', 'dailyLimit', 'monthLimit'] as $field) {
+                        if ($payload->{$field} === null) {
+                            throw new UnexpectedValueException('Recharge-card limit webhook ' . $field . ' is missing.');
+                        }
+                    }
+                } elseif ($status === 'SUCCESS' && $cardType === 'SHARED') {
+                    if ($payload->totalLimit === null || $payload->dailyLimit !== null || $payload->monthLimit !== null) {
+                        throw new UnexpectedValueException('Shared-card limit webhook has an invalid limit shape.');
+                    }
+                }
+            }
+        } elseif ($payload instanceof TransactionWebhook) {
+            $correlationId = $payload->memberCardTransactionId ?? $payload->sharedAccountTransactionId;
+            $status = strtoupper(trim((string)(
+                $event === WebhookEventType::CARD_SETTLE_STATUS
+                    ? $payload->settleStatus
+                    : $payload->status
+            )));
+        } elseif ($payload instanceof CardStatusWebhook) {
+            $correlationId = $payload->memberCardId;
+            $status = strtoupper(trim((string)$payload->cardStatus));
         }
-    } elseif ($payload instanceof SharedAccountOpenStatusWebhook) {
-        $correlationId = $payload->memberSharedAccountId;
-        $status = strtoupper(trim((string)$payload->status));
-    } elseif ($payload instanceof RechargeCardTransferStatusWebhook) {
-        $correlationId = $payload->memberCardOperationRecordId;
-        $status = strtoupper(trim((string)$payload->status));
-    } elseif ($payload instanceof TransactionWebhook) {
-        $correlationId = $payload->memberCardTransactionId ?? $payload->sharedAccountTransactionId;
-        $status = strtoupper(trim((string)(
-            $event === WebhookEventType::CARD_SETTLE_STATUS
-                ? $payload->settleStatus
-                : $payload->status
-        )));
-    } elseif ($payload instanceof CardStatusWebhook) {
-        $correlationId = $payload->memberCardId;
-        $status = strtoupper(trim((string)$payload->cardStatus));
+        if ($correlationId === null || trim((string)$correlationId) === '' || $status === '') {
+            throw new UnexpectedValueException('Webhook correlation ID or status is missing.');
+        }
+        $terminal = match ($event) {
+            WebhookEventType::CARD_SETTLE_STATUS => $status === 'SETTLED',
+            WebhookEventType::CARD_RECHARGE_STATUS,
+            WebhookEventType::CARD_WITHDRAW_STATUS,
+            WebhookEventType::CARD_LIMIT_STATUS => $status === 'SUCCESS' || $status === 'FAIL',
+            default => $status === 'SUCCESS' || $status === 'FAIL' || $payload instanceof CardStatusWebhook,
+        };
+        if (!$terminal) {
+            $respond(200);
+        }
+        $file = $directory . DIRECTORY_SEPARATOR . hash('sha256', $event . "\0" . (string)$correlationId) . '.json';
     }
-    if ($correlationId === null || trim((string)$correlationId) === '' || $status === '') {
-        throw new UnexpectedValueException('Webhook correlation ID or status is missing.');
-    }
-    $terminal = match ($event) {
-        WebhookEventType::CARD_SETTLE_STATUS => $status === 'SETTLED',
-        WebhookEventType::CARD_RECHARGE_STATUS,
-        WebhookEventType::CARD_WITHDRAW_STATUS,
-        WebhookEventType::CARD_LIMIT_STATUS => $status === 'SUCCESS' || $status === 'FAIL',
-        default => $status === 'SUCCESS' || $status === 'FAIL' || $payload instanceof CardStatusWebhook,
-    };
-    if (!$terminal) {
-        $respond(200);
-    }
-    $file = $directory . DIRECTORY_SEPARATOR . hash('sha256', $event . "\0" . (string)$correlationId) . '.json';
     $temporary = $file . '.' . bin2hex(random_bytes(4)) . '.tmp';
     file_put_contents($temporary, json_encode([
         'event' => $verified->type,

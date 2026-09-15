@@ -971,6 +971,18 @@ KEY;
         if (strcasecmp((string)($payload['status'] ?? ''), 'FAIL') === 0) {
             throw new \RuntimeException($expectedType . ' operation failed: ' . ($payload['message'] ?? 'unknown error'));
         }
+        if ($expectedType === self::LIMIT_OPERATION_TYPE) {
+            self::validateRechargeCardLimitWebhook($payload);
+        }
+    }
+
+    private static function validateRechargeCardLimitWebhook(array $payload): void
+    {
+        foreach (['totalLimit', 'dailyLimit', 'monthLimit'] as $field) {
+            if (($payload[$field] ?? null) === null) {
+                throw new \RuntimeException('Recharge-card limit webhook ' . $field . ' is missing.');
+            }
+        }
     }
 
     private static function validateTransferObject(

@@ -18,7 +18,7 @@ final class TransactionsApi
     {
     }
 
-    /** Lists wallet transactions for the current member. */
+    /** Lists wallet transactions for the current member with type, order-number, time, and card filters. */
     public function list(WalletTransactionRequest $request): ?PageResult
     {
         $data = $this->transport->postAuthorized('/open-api/v1/transactions/list', $request);

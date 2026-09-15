@@ -10,10 +10,12 @@ use Luminal\OpenApiSdk\Model\JsonModel;
 use Luminal\OpenApiSdk\Model\RechargeCardTransferStatusWebhook;
 use Luminal\OpenApiSdk\Model\SharedAccountOpenStatusWebhook;
 use Luminal\OpenApiSdk\Model\TransactionWebhook;
+use Luminal\OpenApiSdk\Model\WalletTransactionWebhook;
 
 /** Supported values of the webhook event header. */
 final class WebhookEventType
 {
+    public const WALLET_TRANSACTIONS = 'WALLET_TRANSACTIONS';
     public const CARD_TRANSACTIONS = 'CARD_TRANSACTIONS';
     public const CARD_SETTLE_STATUS = 'CARD_SETTLE_STATUS';
     public const CARD_STATUS = 'CARD_STATUS';
@@ -31,6 +33,7 @@ final class WebhookEventType
     public static function all(): array
     {
         return [
+            self::WALLET_TRANSACTIONS,
             self::CARD_TRANSACTIONS,
             self::CARD_SETTLE_STATUS,
             self::CARD_STATUS,
@@ -47,6 +50,7 @@ final class WebhookEventType
     public static function payloadClass(string $event): string
     {
         return match ($event) {
+            self::WALLET_TRANSACTIONS => WalletTransactionWebhook::class,
             self::CARD_TRANSACTIONS, self::CARD_SETTLE_STATUS, self::SHARE_ACCOUNT_FUND_TRANSACTIONS => TransactionWebhook::class,
             self::CARD_RECHARGE_STATUS, self::CARD_WITHDRAW_STATUS, self::CARD_LIMIT_STATUS => RechargeCardTransferStatusWebhook::class,
             self::CARD_STATUS => CardStatusWebhook::class,

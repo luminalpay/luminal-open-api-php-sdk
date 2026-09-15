@@ -85,7 +85,7 @@ API groups and `Client` accept `TransportInterface`. Use a custom implementation
 | `auth()->refreshToken()` | `/open-api/v1/auth/refresh-token` | Exchange a refresh token for new token data. |
 | `auth()->logout()` | `/open-api/v1/auth/logout` | Invalidate the configured bearer token. |
 | `accounts()->list()` | `/open-api/v1/accounts` | List wallet accounts. |
-| `transactions()->list()` | `/open-api/v1/transactions/list` | List wallet transactions. |
+| `transactions()->list()` | `/open-api/v1/transactions/list` | List wallet transactions with type, order number, time, and card filters. |
 | `sharedAccounts()->create()` | `/open-api/v1/shared-account/create` | Create and initially fund a shared account. |
 | `sharedAccounts()->list()` | `/open-api/v1/shared-account/list` | List shared accounts. |
 | `sharedAccounts()->increase()` | `/open-api/v1/shared-account/increase` | Deposit into a shared account. |
@@ -289,6 +289,7 @@ Supported events:
 
 | Event | Payload | Description |
 |---|---|---|
+| `WALLET_TRANSACTIONS` | `WalletTransactionWebhook` | Wallet transaction notification; payload matches `WalletTransactionResponse`. |
 | `CARD_TRANSACTIONS` | `TransactionWebhook` | Card transaction update. |
 | `CARD_SETTLE_STATUS` | `TransactionWebhook` | Local settlement status update for recharge and shared cards. |
 | `CARD_STATUS` | `CardStatusWebhook` | Card status change. |
@@ -302,8 +303,9 @@ Supported events:
 The SDK verifies signatures but does not persist `event_id` values. Store event IDs and reject duplicates in the application according to its retention policy.
 
 `TransactionWebhook` includes `memberCardTransactionId`, `settleStatus`, and `settleTime` for the newer card transaction
-events. `RechargeCardTransferStatusWebhook` carries the operation-record ID, card ID, operation type, status, amount,
-balance, and update time for recharge, withdrawal, and limit operations.
+events. `WalletTransactionWebhook` mirrors `WalletTransactionResponse`. `RechargeCardTransferStatusWebhook` carries the
+operation-record ID, card ID, operation type, status, amount, balance, limit fields, and update time for recharge,
+withdrawal, and limit operations.
 
 ## Tests
 

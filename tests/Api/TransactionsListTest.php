@@ -12,7 +12,12 @@ final class TransactionsListTest extends EndpointTestCase
 {
     public function testListsWalletTransactions(): void
     {
-        $request = new WalletTransactionRequest(1, 10, 1);
+        $request = new WalletTransactionRequest(
+            pageNo: 1,
+            pageSize: 10,
+            type: 1,
+            orderNo: 'O1',
+        );
         $result = (new TransactionsApi($this->transport(['list' => [['orderNo' => 'O1']]])))->list($request);
 
         self::assertSame('O1', $result?->list[0]->orderNo);

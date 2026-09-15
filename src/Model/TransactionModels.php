@@ -10,14 +10,40 @@ use DateTimeImmutable;
 /** Wallet-transaction list filters. */
 final class WalletTransactionRequest extends JsonModel
 {
-    /** @param list<DateTimeImmutable>|null $createTime */
+    public readonly ?int $pageNo;
+    public readonly ?int $pageSize;
+    public readonly ?int $type;
+    public readonly ?string $orderNo;
+    /** @var list<DateTimeImmutable>|null */
+    public readonly ?array $createTime;
+    public readonly int|string|null $memberCardId;
+
     public function __construct(
-        public readonly ?int $pageNo = null,
-        public readonly ?int $pageSize = null,
-        public readonly ?int $type = null,
-        public readonly ?array $createTime = null,
-        public readonly int|string|null $memberCardId = null,
+        ?int $pageNo = null,
+        ?int $pageSize = null,
+        ?int $type = null,
+        string|array|null $orderNo = null,
+        array|int|string|null $createTime = null,
+        int|string|null $memberCardId = null,
     ) {
+        // Preserve the original positional order: (pageNo, pageSize, type, createTime, memberCardId).
+        if (func_num_args() < 6 && is_array($orderNo)) {
+            $legacyCreateTime = $orderNo;
+            $legacyMemberCardId = $createTime;
+            $orderNo = null;
+            $createTime = $legacyCreateTime;
+            $memberCardId = $legacyMemberCardId;
+        } elseif (func_num_args() < 6 && $orderNo === null && $createTime !== null && !is_array($createTime)) {
+            // Also preserve calls that passed a null createTime before a member-card ID.
+            $memberCardId = $createTime;
+            $createTime = null;
+        }
+        $this->pageNo = $pageNo;
+        $this->pageSize = $pageSize;
+        $this->type = $type;
+        $this->orderNo = is_string($orderNo) ? $orderNo : null;
+        $this->createTime = is_array($createTime) ? $createTime : null;
+        $this->memberCardId = $memberCardId;
     }
 
     public static function fromArray(array $data): static

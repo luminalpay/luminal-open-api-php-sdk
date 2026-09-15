@@ -275,6 +275,7 @@ KEY;
         $transactions = $client->transactions()->list(new WalletTransactionRequest(
             pageNo: 1,
             pageSize: 20,
+            orderNo: null,
         ));
         self::assertInstanceOf(PageResult::class, $transactions);
         self::assertNotNull($transactions->list);
